@@ -1,5 +1,5 @@
-import { List } from './list';
-import { resetForm } from './reset-form';
+import { List } from "./list";
+import { resetForm } from "./reset-form";
 
 export class Form {
   constructor(form) {
@@ -8,7 +8,8 @@ export class Form {
     this.dateField = document.querySelector('[name="date"]');
 
     this.btnSubmit = document.querySelector('[type="submit"]');
-    this.listContainer = document.querySelector('#list');
+    this.listContainer = document.querySelector("#list");
+    this.list = new List(this.listContainer);
 
     this.handleSubmit = this._submit.bind(this);
 
@@ -16,14 +17,14 @@ export class Form {
   }
 
   _init() {
-    this.btnSubmit.addEventListener('click', this.handleSubmit);
+    this.btnSubmit.addEventListener("click", this.handleSubmit);
   }
 
   // Добавить ноль перед числом
   _parseNumber(num) {
     let parsedNum = num;
 
-    return parsedNum < 10 ? '0' + parsedNum : parsedNum;
+    return parsedNum < 10 ? "0" + parsedNum : parsedNum;
   }
 
   _buildDate(date) {
@@ -40,22 +41,24 @@ export class Form {
 
   // Метод отправки зависит от аргумента method
   _send(data, method) {
-    let url = '/api/data';
+    let url = "/api/data";
 
-    if (method == 'PUT') url = url + `/${data.id}`;
+    if (method == "PUT") url = url + `/${data.id}`;
 
     fetch(url, {
       method,
-      headers: { 'Content-Type': 'application/json;charset=utf-8' },
+      headers: { "Content-Type": "application/json;charset=utf-8" },
       body: JSON.stringify(data),
     })
       .then((response) => response.json())
-      .then((data) => new List(this.listContainer, data.list))
+      .then((data) => {
+        this.list.render(data.list);
+      })
       .catch((error) => console.error(error));
   }
 
   _setMetaData(id, date) {
-    // Если мы редактирует, то метаданные уже есть и менять их не будем
+    // Если мы редактируем, то метаданные уже есть и менять их не будем
     if (this.idField.value && this.dateField.value) return;
 
     this.idField.value = id;
@@ -64,7 +67,7 @@ export class Form {
 
   _submit(event) {
     event.preventDefault();
-    const currentMethod = this.form.getAttribute('data-method');
+    const currentMethod = this.form.getAttribute("data-method");
 
     const currentDate = new Date();
     this._setMetaData(currentDate.getTime(), this._buildDate(currentDate));
@@ -79,6 +82,6 @@ export class Form {
     this._send(data, currentMethod);
 
     resetForm(this.form);
-    $('#formModal').modal('hide'); // Открыть модальное окно
+    $("#formModal").modal("hide"); // Открыть модальное окно
   }
 }

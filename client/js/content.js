@@ -1,42 +1,55 @@
 export class Content {
-  constructor(container, data) {
+  constructor(container) {
     this.container = container;
-    this.data = data;
+    this.data = {};
+    this.updateList = null;
 
-    this._init();
+    this.handleClickTrashBtn = this._clickTrashBtn.bind(this);
+
+    // this._init();
   }
 
-  _init() {
-    this._render();
-  }
+  // _init() {}
 
   _clear() {
-    this.container.innerHTML = '';
+    this.container.innerHTML = "";
   }
 
   _createEditButton(id) {
-    const btnNode = document.createElement('button');
+    const btnNode = document.createElement("button");
 
-    btnNode.classList.value = 'btn btn-warning mt-auto';
-    btnNode.textContent = 'Редактировать';
-    btnNode.setAttribute('data-id', id);
+    btnNode.classList.value = "btn btn-warning";
+    btnNode.textContent = "Редактировать";
+    btnNode.setAttribute("data-id", id);
 
-    btnNode.addEventListener('click', this._clickEditBtn);
+    btnNode.addEventListener("click", this._clickEditBtn);
+
+    return btnNode;
+  }
+
+  _createTrashButton(id) {
+    const btnNode = document.createElement("button");
+
+    btnNode.classList.value = "btn btn-danger ml-2";
+    btnNode.innerHTML = `<i class="fas fa-trash-alt fa-lg"></i>`;
+    btnNode.setAttribute("data-id", id);
+
+    btnNode.addEventListener("click", this.handleClickTrashBtn);
 
     return btnNode;
   }
 
   _clickEditBtn(event) {
-    const id = event.currentTarget.getAttribute('data-id');
-    const form = document.querySelector('#form');
+    const id = event.currentTarget.getAttribute("data-id");
+    const form = document.querySelector("#form");
     const titleField = form.querySelector('[name="title"]');
     const contentField = form.querySelector('[name="content"]');
     const idField = form.querySelector('[name="id"]');
     const dateField = form.querySelector('[name="date"]');
 
-    form.setAttribute('data-method', 'PUT');
+    form.setAttribute("data-method", "PUT");
 
-    fetch('/api/data', { method: 'GET' })
+    fetch("/api/data", { method: "GET" })
       .then((response) => response.json())
       .then((data) => {
         data.list.forEach((item) => {
@@ -46,15 +59,37 @@ export class Content {
             idField.value = item.id;
             dateField.value = item.date;
 
-            $('#formModal').modal('show');
+            $("#formModal").modal("show");
           }
         });
       })
       .catch((error) => console.error(error));
   }
 
-  _render() {
-    const btEdit = this._createEditButton(this.data.id);
+  _clickTrashBtn(event) {
+    const id = event.currentTarget.getAttribute("data-id");
+    const isConfirm = confirm("Вы уверены, что хотите удалить пост?");
+
+    if (!isConfirm) return;
+
+    fetch(`/api/data/${id}`, { method: "DELETE" })
+      .then((response) => response.json())
+      .then((data) => {
+        // Очистить контент послу удаления
+        this._clear();
+        // Если метод для обновления списка передали в этот класс, то можно запустить
+        if (this.updateList) {
+          this.updateList(data.list);
+        }
+      })
+      .catch((error) => console.error(error));
+  }
+
+  render(data, updateList) {
+    this.data = data;
+    this.updateList = updateList; // Присваиваем к свойству this.updateList колбэк updateList
+    const btnEdit = this._createEditButton(this.data.id);
+    const btnTrash = this._createTrashButton(this.data.id);
     const template = `
       <h3>${this.data.title}</h3>
       <h6 class="text-muted">${this.data.date}</h6>
@@ -63,6 +98,10 @@ export class Content {
 
     this._clear();
     this.container.innerHTML = this.container.innerHTML + template;
-    this.container.append(btEdit);
+
+    const btnWrap = document.createElement("div");
+    btnWrap.classList.value = "mt-auto d-flex justify-content-end";
+    btnWrap.append(btnEdit, btnTrash);
+    this.container.append(btnWrap);
   }
 }

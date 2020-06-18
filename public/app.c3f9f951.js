@@ -132,47 +132,53 @@ function _defineProperties(target, props) { for (var i = 0; i < props.length; i+
 function _createClass(Constructor, protoProps, staticProps) { if (protoProps) _defineProperties(Constructor.prototype, protoProps); if (staticProps) _defineProperties(Constructor, staticProps); return Constructor; }
 
 var Content = /*#__PURE__*/function () {
-  function Content(container, data) {
+  function Content(container) {
     _classCallCheck(this, Content);
 
     this.container = container;
-    this.data = data;
+    this.data = {};
+    this.updateList = null;
+    this.handleClickTrashBtn = this._clickTrashBtn.bind(this); // this._init();
+  } // _init() {}
 
-    this._init();
-  }
 
   _createClass(Content, [{
-    key: "_init",
-    value: function _init() {
-      this._render();
-    }
-  }, {
     key: "_clear",
     value: function _clear() {
-      this.container.innerHTML = '';
+      this.container.innerHTML = "";
     }
   }, {
     key: "_createEditButton",
     value: function _createEditButton(id) {
-      var btnNode = document.createElement('button');
-      btnNode.classList.value = 'btn btn-warning mt-auto';
-      btnNode.textContent = 'Редактировать';
-      btnNode.setAttribute('data-id', id);
-      btnNode.addEventListener('click', this._clickEditBtn);
+      var btnNode = document.createElement("button");
+      btnNode.classList.value = "btn btn-warning";
+      btnNode.textContent = "Редактировать";
+      btnNode.setAttribute("data-id", id);
+      btnNode.addEventListener("click", this._clickEditBtn);
+      return btnNode;
+    }
+  }, {
+    key: "_createTrashButton",
+    value: function _createTrashButton(id) {
+      var btnNode = document.createElement("button");
+      btnNode.classList.value = "btn btn-danger ml-2";
+      btnNode.innerHTML = "<i class=\"fas fa-trash-alt fa-lg\"></i>";
+      btnNode.setAttribute("data-id", id);
+      btnNode.addEventListener("click", this.handleClickTrashBtn);
       return btnNode;
     }
   }, {
     key: "_clickEditBtn",
     value: function _clickEditBtn(event) {
-      var id = event.currentTarget.getAttribute('data-id');
-      var form = document.querySelector('#form');
+      var id = event.currentTarget.getAttribute("data-id");
+      var form = document.querySelector("#form");
       var titleField = form.querySelector('[name="title"]');
       var contentField = form.querySelector('[name="content"]');
       var idField = form.querySelector('[name="id"]');
       var dateField = form.querySelector('[name="date"]');
-      form.setAttribute('data-method', 'PUT');
-      fetch('/api/data', {
-        method: 'GET'
+      form.setAttribute("data-method", "PUT");
+      fetch("/api/data", {
+        method: "GET"
       }).then(function (response) {
         return response.json();
       }).then(function (data) {
@@ -182,7 +188,7 @@ var Content = /*#__PURE__*/function () {
             contentField.value = item.content;
             idField.value = item.id;
             dateField.value = item.date;
-            $('#formModal').modal('show');
+            $("#formModal").modal("show");
           }
         });
       }).catch(function (error) {
@@ -190,16 +196,48 @@ var Content = /*#__PURE__*/function () {
       });
     }
   }, {
-    key: "_render",
-    value: function _render() {
-      var btEdit = this._createEditButton(this.data.id);
+    key: "_clickTrashBtn",
+    value: function _clickTrashBtn(event) {
+      var _this = this;
+
+      var id = event.currentTarget.getAttribute("data-id");
+      var isConfirm = confirm("Вы уверены, что хотите удалить пост?");
+      if (!isConfirm) return;
+      fetch("/api/data/".concat(id), {
+        method: "DELETE"
+      }).then(function (response) {
+        return response.json();
+      }).then(function (data) {
+        // Очистить контент послу удаления
+        _this._clear(); // Если метод для обновления списка передали в этот класс, то можно запустить
+
+
+        if (_this.updateList) {
+          _this.updateList(data.list);
+        }
+      }).catch(function (error) {
+        return console.error(error);
+      });
+    }
+  }, {
+    key: "render",
+    value: function render(data, updateList) {
+      this.data = data;
+      this.updateList = updateList; // Присваиваем к свойству this.updateList колбэк updateList
+
+      var btnEdit = this._createEditButton(this.data.id);
+
+      var btnTrash = this._createTrashButton(this.data.id);
 
       var template = "\n      <h3>".concat(this.data.title, "</h3>\n      <h6 class=\"text-muted\">").concat(this.data.date, "</h6>\n      <div>").concat(this.data.content, "</div>\n    ");
 
       this._clear();
 
       this.container.innerHTML = this.container.innerHTML + template;
-      this.container.append(btEdit);
+      var btnWrap = document.createElement("div");
+      btnWrap.classList.value = "mt-auto d-flex justify-content-end";
+      btnWrap.append(btnEdit, btnTrash);
+      this.container.append(btnWrap);
     }
   }]);
 
@@ -224,12 +262,13 @@ function _defineProperties(target, props) { for (var i = 0; i < props.length; i+
 function _createClass(Constructor, protoProps, staticProps) { if (protoProps) _defineProperties(Constructor.prototype, protoProps); if (staticProps) _defineProperties(Constructor, staticProps); return Constructor; }
 
 var List = /*#__PURE__*/function () {
-  function List(container, data) {
+  function List(container) {
     _classCallCheck(this, List);
 
     this.container = container;
-    this.data = data;
-    this.activeListItem = null;
+    this.activeItemId = null;
+    this.data = [];
+    this.content = new _content.Content(document.querySelector("#content"));
     this.handleClickList = this._clickList.bind(this);
 
     this._init();
@@ -238,59 +277,74 @@ var List = /*#__PURE__*/function () {
   _createClass(List, [{
     key: "_init",
     value: function _init() {
-      this._render();
-
-      this.container.addEventListener('click', this.handleClickList);
+      this.container.addEventListener("click", this.handleClickList);
     }
   }, {
     key: "_clear",
     value: function _clear() {
-      this.container.innerHTML = '';
+      this.container.innerHTML = "";
     }
   }, {
     key: "_removeActive",
     value: function _removeActive() {
-      if (!this.activeListItem) return;
-      this.activeListItem.classList.remove('active');
+      if (!this.activeItemId) return;
+      var target = this.container.querySelector("[data-id=\"".concat(this.activeItemId, "\"]"));
+      target.classList.remove("active");
+    }
+  }, {
+    key: "_selectListItem",
+    value: function _selectListItem(id) {
+      var _this = this;
+
+      var target = this.container.querySelector("[data-id=\"".concat(id, "\"]")); // После удаления этот элемент теряется, надо сделать проверку
+
+      if (target) {
+        this._removeActive();
+
+        this.activeItemId = id;
+        target.classList.add("active");
+      } else {
+        // Если элемент удалён надо обнулить это свойство
+        this.activeItemId = null;
+      }
+
+      this.data.forEach(function (item) {
+        if (id == item.id) {
+          // Передаём метод для рендера списка, чтобы там вызывать его для обновления
+          // Надо передать контекст вызова, this.render использует свойства из текущего класса
+          // Если не сделать bind мы потеряем свойства, которые хранятся в этом классе
+          _this.content.render(item, _this.render.bind(_this));
+        }
+      });
     }
   }, {
     key: "_clickList",
     value: function _clickList(event) {
       var target = event.target;
 
-      if (target.classList.value.includes('list-item')) {
-        var id = target.getAttribute('data-id');
-        target.classList.add('active');
+      if (target.classList.value.includes("list-item")) {
+        var id = target.getAttribute("data-id");
 
-        this._removeActive();
-
-        this.activeListItem = target;
-        fetch('/api/data', {
-          method: 'GET'
-        }).then(function (response) {
-          return response.json();
-        }).then(function (data) {
-          data.list.forEach(function (item) {
-            if (id == item.id) {
-              new _content.Content(document.querySelector('#content'), item);
-            }
-          });
-        }).catch(function (error) {
-          return console.error(error);
-        });
+        this._selectListItem(id);
       }
     }
   }, {
-    key: "_render",
-    value: function _render() {
-      var _this = this;
+    key: "render",
+    value: function render(data) {
+      var _this2 = this;
+
+      this.data = data;
 
       this._clear();
 
       this.data.forEach(function (item) {
         var template = "\n        <div class=\"list-item p-3\" data-id=\"".concat(item.id, "\">\n          <h5>").concat(item.title, "</h5>\n          <small>").concat(item.date, "</small>\n        </div>\n      ");
-        _this.container.innerHTML = _this.container.innerHTML + template;
+        _this2.container.innerHTML = _this2.container.innerHTML + template;
       });
+
+      if (this.activeItemId) {
+        this._selectListItem(this.activeItemId);
+      }
     }
   }]);
 
@@ -324,7 +378,7 @@ function resetForm(form) {
   form.reset(); // Найдём все скрытые поля в форме и сбросим их значение
 
   _toConsumableArray(form.querySelectorAll('[type="hidden"]')).forEach(function (input) {
-    input.value = '';
+    input.value = "";
   });
 }
 },{}],"js/form.js":[function(require,module,exports) {
@@ -367,7 +421,8 @@ var Form = /*#__PURE__*/function () {
     this.idField = document.querySelector('[name="id"]');
     this.dateField = document.querySelector('[name="date"]');
     this.btnSubmit = document.querySelector('[type="submit"]');
-    this.listContainer = document.querySelector('#list');
+    this.listContainer = document.querySelector("#list");
+    this.list = new _list.List(this.listContainer);
     this.handleSubmit = this._submit.bind(this);
 
     this._init();
@@ -376,14 +431,14 @@ var Form = /*#__PURE__*/function () {
   _createClass(Form, [{
     key: "_init",
     value: function _init() {
-      this.btnSubmit.addEventListener('click', this.handleSubmit);
+      this.btnSubmit.addEventListener("click", this.handleSubmit);
     } // Добавить ноль перед числом
 
   }, {
     key: "_parseNumber",
     value: function _parseNumber(num) {
       var parsedNum = num;
-      return parsedNum < 10 ? '0' + parsedNum : parsedNum;
+      return parsedNum < 10 ? "0" + parsedNum : parsedNum;
     }
   }, {
     key: "_buildDate",
@@ -407,18 +462,18 @@ var Form = /*#__PURE__*/function () {
     value: function _send(data, method) {
       var _this = this;
 
-      var url = '/api/data';
-      if (method == 'PUT') url = url + "/".concat(data.id);
+      var url = "/api/data";
+      if (method == "PUT") url = url + "/".concat(data.id);
       fetch(url, {
         method: method,
         headers: {
-          'Content-Type': 'application/json;charset=utf-8'
+          "Content-Type": "application/json;charset=utf-8"
         },
         body: JSON.stringify(data)
       }).then(function (response) {
         return response.json();
       }).then(function (data) {
-        return new _list.List(_this.listContainer, data.list);
+        _this.list.render(data.list);
       }).catch(function (error) {
         return console.error(error);
       });
@@ -426,7 +481,7 @@ var Form = /*#__PURE__*/function () {
   }, {
     key: "_setMetaData",
     value: function _setMetaData(id, date) {
-      // Если мы редактирует, то метаданные уже есть и менять их не будем
+      // Если мы редактируем, то метаданные уже есть и менять их не будем
       if (this.idField.value && this.dateField.value) return;
       this.idField.value = id;
       this.dateField.value = date;
@@ -435,7 +490,7 @@ var Form = /*#__PURE__*/function () {
     key: "_submit",
     value: function _submit(event) {
       event.preventDefault();
-      var currentMethod = this.form.getAttribute('data-method');
+      var currentMethod = this.form.getAttribute("data-method");
       var currentDate = new Date();
 
       this._setMetaData(currentDate.getTime(), this._buildDate(currentDate));
@@ -463,7 +518,7 @@ var Form = /*#__PURE__*/function () {
       this._send(data, currentMethod);
 
       (0, _resetForm.resetForm)(this.form);
-      $('#formModal').modal('hide'); // Открыть модальное окно
+      $("#formModal").modal("hide"); // Открыть модальное окно
     }
   }]);
 
@@ -480,22 +535,23 @@ var _list = require("./list");
 
 var _resetForm = require("./reset-form");
 
-var formNode = document.querySelector('#form');
+var formNode = document.querySelector("#form");
 new _form.Form(formNode); // ---------------------------------------------------
 
-var createBtnNode = document.querySelector('#createBtn');
-createBtnNode.addEventListener('click', function () {
-  formNode.setAttribute('data-method', 'POST');
+var createBtnNode = document.querySelector("#createBtn");
+createBtnNode.addEventListener("click", function () {
+  formNode.setAttribute("data-method", "POST");
   (0, _resetForm.resetForm)(formNode);
-  $('#formModal').modal('show');
+  $("#formModal").modal("show");
 });
-var listNode = document.querySelector('#list');
-fetch('/api/data', {
-  method: 'GET'
+var listNode = document.querySelector("#list");
+var list = new _list.List(listNode);
+fetch("/api/data", {
+  method: "GET"
 }).then(function (response) {
   return response.json();
 }).then(function (data) {
-  return new _list.List(listNode, data.list);
+  return list.render(data.list);
 }).catch(function (error) {
   return console.error(error);
 });
@@ -527,7 +583,7 @@ var parent = module.bundle.parent;
 if ((!parent || !parent.isParcelRequire) && typeof WebSocket !== 'undefined') {
   var hostname = "" || location.hostname;
   var protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-  var ws = new WebSocket(protocol + '://' + hostname + ':' + "63056" + '/');
+  var ws = new WebSocket(protocol + '://' + hostname + ':' + "57154" + '/');
 
   ws.onmessage = function (event) {
     checkedAssets = {};
